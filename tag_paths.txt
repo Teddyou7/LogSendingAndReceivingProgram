@@ -1,0 +1,3 @@
+default=./logs
+test=/Jackets/log_receiver/123.log
+ted=/Jackets/log_receiver/1211.log
