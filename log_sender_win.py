@@ -6,10 +6,10 @@ import re
 import chardet
 import ctypes
 
-#python -m PyInstaller  --onefile --icon=C:\Users\ouyan\OneDrive\图片\bctc16x.ico D:\svn.bctc-squad.cn\技术部门\python\游戏日志网络收发程序\发送\BCTC_log_sender_1.0.4.py
+#python -m PyInstaller  --onefile --icon=.\bctc16x.ico .\BCTC_log_sender_1.0.4.py
 #日志发送程序
 #启动命令
-#\log_sender.py server=42.193.48.240:9999 file=".\SquadGame.log"  tag=test
+#\log_sender.py server=127.0.0.1:9999 file=".\SquadGame.log"  tag=test
 
 #或同级配置文件
 #log_sender.cfg
