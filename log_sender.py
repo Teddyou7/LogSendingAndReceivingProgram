@@ -4,7 +4,9 @@ import time
 import os
 import re
 import chardet
+import ctypes
 
+#python -m PyInstaller  --onefile --icon=C:\Users\ouyan\OneDrive\图片\bctc16x.ico D:\svn.bctc-squad.cn\技术部门\python\游戏日志网络收发程序\发送\BCTC_log_sender_1.0.4.py
 #日志发送程序
 #启动命令
 #\log_sender.py server=42.193.48.240:9999 file=".\SquadGame.log"  tag=test
@@ -58,17 +60,7 @@ def load_config(cfg_path):
 def should_send(message):
     # 定义正则表达式规则
     rules = [
-        r"Die\(\):\ Player:(.+)\ KillingDamage=([0-9.]+)\ from\ .*\ steam:\ ([0-9]+)\ \|\ .*\)\ caused\ by\ BP_(.+)_C_",
-        r"\[([0-9]{4}\.[0-9]{2}\.[0-9]{2}-[0-9]{2}\.[0-9]{2}\.[0-9]{2}):([0-9]{3})\].*LogSquad:\ (.+?)\ \(.*steam:\ ([0-9]+)\).*created\ Squad\ ([0-9]+)\ \(Squad\ Name:\ (.+?)\)\ on\ (.+)$",
-        r"NewPlayer.*\ \(IP:\ ([0-9.]+)\ \|\ Online\ IDs:\ EOS:\ ([0-9a-z]+)\ steam:\ ([0-9]+)\)",
-        r"StartLoadingDestination",
-        r"LogSquadGameEvents",
-        r"Wound\(\):\ Player:(.+)\ KillingDamage=([0-9.]+)\ from\ .*\ steam:\ ([0-9]+)\ .*caused\ by\ BP_(.+)_C",
-        r"Player:(.+)\ ActualDamage=([0-9.]+)\ from\ (.+)\ \(Online\ .*\ steam:\ ([0-9]+)\ .*caused\ by\ BP_(.+)_C",
-        r"\[([0-9]{4}\.[0-9]{2}\.[0-9]{2}-[0-9]{2}\.[0-9]{2}\.[0-9]{2}):([0-9]{3})].*StartLoadingDestination\ to:\ .*\/([A-Za-z0-9_]+)",
-        r"\[([0-9]{4}\.[0-9]{2}\.[0-9]{2}-[0-9]{2}\.[0-9]{2}\.[0-9]{2}):([0-9]{3})\]\[.+\]LogSquad\:\ (.+)\ \(.*steam:\ ([0-9]+)\)\ has\ revived\ (.+)\ \(.*steam:\ ([0-9]+)\)",
-        r"Possess",
-        r"LogSquadTrace"
+        r".*"
     ]
 
     for rule in rules:
@@ -87,45 +79,73 @@ def monitor_and_send_data(sender, file_path, tag):
     position = 0
     initial_run = True
     encoding = 'utf-8'  # 默认字符集
+
     while True:
         try:
             if not os.path.exists(file_path):
                 print(f"File {file_path} does not exist. Waiting for it to appear...")
-                position = 0
                 initial_run = True
                 time.sleep(1)
                 continue
 
-            if initial_run:
+            current_size = os.path.getsize(file_path)
+            if initial_run or position > current_size:
+                if initial_run:
+                    print("Initial run or file was truncated/reset. Starting from the end of the file.")
+                else:
+                    print("File was truncated or reset. Starting from the beginning of the new file.")
+
                 encoding = detect_encoding(file_path)  # 检测文件字符集
                 print(f"Detected encoding: {encoding}")
-                position = os.path.getsize(file_path)
+                position = current_size  # 从文件末尾开始读取
                 initial_run = False
 
-            current_size = os.path.getsize(file_path)
-            if position > current_size:
-                print("File was truncated or reset. Starting from the beginning of the new file.")
-                position = 0
-                encoding = detect_encoding(file_path)  # 重新检测字符集，因为文件可能已经改变
-
             with open(file_path, 'r', encoding=encoding, errors='replace') as file:
-                file.seek(position)
+                file.seek(position)  # 移动到上次结束的位置
                 line = file.readline()
                 while line:
                     if should_send(line):
-                        full_message = f"{tag}&!BCTCLOG!&{line.strip()}"
+                        full_message = f"{tag}&!BCTCLOG!&{line.strip()}&!LOGEND!&"
                         if sender.send(full_message.encode('utf-8')):
                             print(f"Send=Put, Tag={tag}, Content={line.strip()}")
                         else:
                             print("Send=Failed, skipping line after retry.")
+                            break  # 发送失败时跳出循环
                     else:
                         print(f"Send=Skipped, Tag={tag}, Content={line.strip()}")
-                    position = file.tell()
+
+                    position = file.tell()  # 更新当前位置
                     line = file.readline()
-                time.sleep(0.05)
+
+                time.sleep(0.05)  # 轮询间隔
+
         except Exception as e:
             print(f"An error occurred: {e}")
             time.sleep(1)
+
+# 针对Windows系统的优化内容 移除选中模式 防止被系统暂停日志传输
+def disable_quick_edit_mode():
+    # 获取标准输入的句柄
+    kernel32 = ctypes.windll.kernel32
+    stdin_handle = kernel32.GetStdHandle(-10)
+    mode = ctypes.c_ulong()
+
+    # 获取当前模式
+    kernel32.GetConsoleMode(stdin_handle, ctypes.byref(mode))
+
+    # 移除快速编辑模式和插入模式标志
+    ENABLE_QUICK_EDIT = 0x0040 | 0x0020
+    new_mode = mode.value & ~ENABLE_QUICK_EDIT
+
+    # 设置新模式
+    kernel32.SetConsoleMode(stdin_handle, new_mode)
+
+if sys.platform == "win32":
+    try:
+        disable_quick_edit_mode()
+    except Exception as e:
+        print(f"Warning: Could not disable quick edit mode: {e}")
+
 
 if __name__ == "__main__":
     print("==============================================")
@@ -138,7 +158,7 @@ if __name__ == "__main__":
     print(" 请将本程序与配置文件放置在游戏日志同级路径下")
     print("")
     print("==============================================")
-    print("当前使用程序版本号：1.0.4-240312")
+    print("当前使用程序版本号：1.0.7-240418")
     print("启动参数: ./log_sender server=192.168.1.1:6900 file=SquadGameFile tag=Squad")
     print("如果您未使用参数启动，则将会读取同级路径下的配置文件：log_sender.cfg")
     print("")
