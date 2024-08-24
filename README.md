@@ -1,2 +1,7 @@
 # LogSendingAndReceivingProgram
-A simple log sending and receiving program that supports regular filtering of logs before sending, and then sending.
+
+log_sender.py 为日志发送
+
+log_receiver.py 为日志接收
+
+程序采用TCP协议进行日志收发。
